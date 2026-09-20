@@ -1,0 +1,13 @@
+{
+  "name": "prompt-action",
+  "version": "1.2.0",
+  "private": true,
+  "description": "A Windows-first Chrome and Edge extension that quickly optimizes ChatGPT prompts with the local Codex CLI.",
+  "scripts": {
+    "test": "node --test",
+    "validate:manifest": "node --test tests/manifest.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

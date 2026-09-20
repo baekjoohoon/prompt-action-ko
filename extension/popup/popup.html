@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Prompt Action</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <main class="popup">
+    <h1>Prompt Action</h1>
+    <dl class="details">
+      <div><dt>단축키</dt><dd><kbd>Ctrl</kbd> + <kbd>`</kbd></dd></div>
+      <div><dt>확장 프로그램 ID</dt><dd id="extension-id">확인 중...</dd></div>
+      <div><dt>Native host</dt><dd id="native-status">확인 중...</dd></div>
+      <div><dt>Codex CLI</dt><dd id="codex-status">확인 중...</dd></div>
+    </dl>
+    <p class="guide">ChatGPT 입력창에 초안을 작성한 뒤 <kbd>Ctrl</kbd> + <kbd>`</kbd>를 누르세요. 결과를 검토한 다음 직접 전송합니다.</p>
+    <p id="setup-hint" class="hint"></p>
+  </main>
+  <script src="../shared/contract.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

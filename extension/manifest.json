@@ -1,0 +1,40 @@
+{
+  "manifest_version": 3,
+  "name": "Prompt Action",
+  "version": "1.2.0",
+  "description": "Quickly rewrite the current ChatGPT draft into a strong English prompt that requests a Korean answer.",
+  "permissions": [
+    "nativeMessaging"
+  ],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*"
+  ],
+  "background": {
+    "service_worker": "service-worker.js"
+  },
+  "action": {
+    "default_title": "Prompt Action",
+    "default_popup": "popup/popup.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*"
+      ],
+      "js": [
+        "shared/contract.js",
+        "content/chatgpt-adapter.js",
+        "content/prompt-action.js"
+      ],
+      "css": [
+        "content/styles.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  }
+}

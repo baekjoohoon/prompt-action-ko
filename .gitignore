@@ -1,0 +1,8 @@
+native-host/bin/
+native-host/obj/
+native-host/dist/
+native-host/dist-*/
+native-host/installed/
+.tools/
+node_modules/
+*.log
