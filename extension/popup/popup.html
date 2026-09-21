@@ -9,14 +9,25 @@
 <body>
   <main class="popup">
     <h1>Prompt Action</h1>
-    <dl class="details">
-      <div><dt>단축키</dt><dd><kbd>Ctrl</kbd> + <kbd>`</kbd></dd></div>
-      <div><dt>확장 프로그램 ID</dt><dd id="extension-id">확인 중...</dd></div>
-      <div><dt>Native host</dt><dd id="native-status">확인 중...</dd></div>
+    <p id="overall-status" class="overall-status" aria-live="polite" hidden></p>
+    <dl class="details" aria-label="Prompt Action 설치 상태">
+      <div><dt>Native Host</dt><dd id="native-status">확인 중...</dd></div>
       <div><dt>Codex CLI</dt><dd id="codex-status">확인 중...</dd></div>
+      <div><dt>Codex 로그인</dt><dd id="codex-auth-status">확인 중...</dd></div>
     </dl>
+    <div class="actions">
+      <a id="codex-install-link" href="https://developers.openai.com/codex/cli" target="_blank" rel="noopener noreferrer" hidden>Codex 설치 안내</a>
+      <button id="codex-login-button" type="button" hidden>Codex 로그인</button>
+      <button id="refresh-status-button" type="button" class="secondary">상태 새로고침</button>
+    </div>
+    <p id="setup-hint" class="hint" aria-live="polite"></p>
     <p class="guide">ChatGPT 입력창에 초안을 작성한 뒤 <kbd>Ctrl</kbd> + <kbd>`</kbd>를 누르세요. 결과를 검토한 다음 직접 전송합니다.</p>
-    <p id="setup-hint" class="hint"></p>
+    <details class="setup-info">
+      <summary>설치 정보</summary>
+      <dl class="install-details">
+        <div><dt>확장 프로그램 ID</dt><dd id="extension-id">확인 중...</dd></div>
+      </dl>
+    </details>
   </main>
   <script src="../shared/contract.js"></script>
   <script src="popup.js"></script>

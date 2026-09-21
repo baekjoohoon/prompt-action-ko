@@ -107,7 +107,8 @@ test('persistent native port is reused and responses correlate by request ID', a
     requestId: secondId,
     ok: true,
     host: 'Prompt Action',
-    codexAvailable: true
+    codexAvailable: true,
+    codexAuthenticated: true
   });
   ports[0].respond({
     requestId: firstId,
@@ -141,7 +142,8 @@ test('a disconnected native port is cleared and reconnects once on the next requ
     requestId: ports[1].messages[0].requestId,
     ok: true,
     host: 'Prompt Action',
-    codexAvailable: true
+    codexAvailable: true,
+    codexAuthenticated: true
   });
   const second = await secondPromise;
   assert.equal(second.ok, true);
@@ -184,7 +186,26 @@ test('service worker API keeps BUSY protection while reusing its port', async ()
     requestId: ports[0].messages[1].requestId,
     ok: true,
     host: 'Prompt Action',
-    codexAvailable: true
+    codexAvailable: true,
+    codexAuthenticated: true
   });
   assert.equal((await pingPromise).ok, true);
+});
+
+test('service worker exposes Codex login as a fixed popup request', async () => {
+  const { chromeRef, ports } = createFakeChrome();
+  const api = createServiceWorkerApi(chromeRef, contract, complexity, { timeoutMs: 1000 });
+
+  const loginPromise = api.loginCodex();
+  assert.deepEqual(ports[0].messages[0], {
+    action: 'codex_login',
+    requestId: ports[0].messages[0].requestId
+  });
+  ports[0].respond({
+    requestId: ports[0].messages[0].requestId,
+    ok: true,
+    loginStarted: true
+  });
+
+  assert.deepEqual(await loginPromise, { ok: true, loginStarted: true });
 });

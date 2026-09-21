@@ -7,6 +7,7 @@ namespace PromptAction.NativeHost;
 internal sealed class CodexRunner
 {
     internal const int TimeoutMilliseconds = 120000;
+    internal const int AuthenticationStatusTimeoutMilliseconds = 15000;
     internal const string PromptActionModel = "gpt-5.6-luna";
     internal const string ReasoningEffortConfigKey = "model_reasoning_effort";
     internal const int MaxOutputCharacters = 30000;
@@ -23,6 +24,54 @@ internal sealed class CodexRunner
             return int.TryParse(value, out var parsed) && parsed > 0 && parsed <= TimeoutMilliseconds
                 ? parsed
                 : TimeoutMilliseconds;
+        }
+    }
+
+    public async Task<NativeResponse> GetStatusAsync(string? requestId)
+    {
+        var executable = CodexExecutableResolver.TryResolve();
+        if (executable is null)
+        {
+            return NativeResponse.Ping(false, false, requestId);
+        }
+
+        var authenticated = await IsAuthenticatedAsync(executable);
+        return NativeResponse.Ping(true, authenticated, requestId);
+    }
+
+    public NativeResponse StartLogin(string? requestId)
+    {
+        var executable = CodexExecutableResolver.TryResolve();
+        if (executable is null)
+        {
+            return NativeResponse.Failure(
+                ErrorCodes.CodexNotFound,
+                "Codex CLI를 찾을 수 없습니다.",
+                requestId);
+        }
+
+        var process = new Process { StartInfo = CreateLoginStartInfo(executable) };
+        try
+        {
+            if (!process.Start())
+            {
+                process.Dispose();
+                return NativeResponse.Failure(
+                    ErrorCodes.CodexFailed,
+                    "Codex 로그인을 시작하지 못했습니다.",
+                    requestId);
+            }
+
+            _ = DrainDetachedProcessAsync(process);
+            return NativeResponse.LoginStartedResponse(requestId);
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception)
+        {
+            process.Dispose();
+            return NativeResponse.Failure(
+                ErrorCodes.CodexNotFound,
+                "Codex CLI를 실행하지 못했습니다.",
+                requestId);
         }
     }
 
@@ -159,17 +208,7 @@ internal sealed class CodexRunner
     internal static ProcessStartInfo CreateStartInfo(string executable, string effort)
     {
         var extension = Path.GetExtension(executable).ToLowerInvariant();
-        var startInfo = new ProcessStartInfo
-        {
-            UseShellExecute = false,
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            StandardInputEncoding = new UTF8Encoding(false),
-            StandardOutputEncoding = new UTF8Encoding(false),
-            StandardErrorEncoding = new UTF8Encoding(false),
-            CreateNoWindow = true
-        };
+        var startInfo = CreateRedirectedStartInfo();
 
         if (extension is ".cmd" or ".bat")
         {
@@ -192,6 +231,64 @@ internal sealed class CodexRunner
 
         return startInfo;
     }
+
+    internal static ProcessStartInfo CreateLoginStartInfo(string executable) =>
+        CreateSubcommandStartInfo(executable, "login");
+
+    internal static ProcessStartInfo CreateLoginStatusStartInfo(string executable) =>
+        CreateSubcommandStartInfo(executable, "login", "status");
+
+    private static ProcessStartInfo CreateSubcommandStartInfo(
+        string executable,
+        params string[] commandArguments)
+    {
+        var extension = Path.GetExtension(executable).ToLowerInvariant();
+        var startInfo = CreateRedirectedStartInfo();
+
+        if (extension is ".cmd" or ".bat")
+        {
+            startInfo.FileName = Environment.GetEnvironmentVariable("ComSpec") ?? "cmd.exe";
+            // These arguments are fixed by the host. The browser cannot supply them.
+            startInfo.Arguments = $"/d /s /c \"\"{executable}\" {string.Join(" ", commandArguments)}\"";
+        }
+        else if (extension == ".ps1")
+        {
+            startInfo.FileName = Environment.GetEnvironmentVariable("ComSpec") is not null
+                ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe")
+                : "powershell.exe";
+            startInfo.ArgumentList.Add("-NoProfile");
+            startInfo.ArgumentList.Add("-ExecutionPolicy");
+            startInfo.ArgumentList.Add("Bypass");
+            startInfo.ArgumentList.Add("-File");
+            startInfo.ArgumentList.Add(executable);
+            foreach (var commandArgument in commandArguments)
+            {
+                startInfo.ArgumentList.Add(commandArgument);
+            }
+        }
+        else
+        {
+            startInfo.FileName = executable;
+            foreach (var commandArgument in commandArguments)
+            {
+                startInfo.ArgumentList.Add(commandArgument);
+            }
+        }
+
+        return startInfo;
+    }
+
+    private static ProcessStartInfo CreateRedirectedStartInfo() => new()
+    {
+        UseShellExecute = false,
+        RedirectStandardInput = true,
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+        StandardInputEncoding = new UTF8Encoding(false),
+        StandardOutputEncoding = new UTF8Encoding(false),
+        StandardErrorEncoding = new UTF8Encoding(false),
+        CreateNoWindow = true
+    };
 
     private static void AddCodexArguments(
         ICollection<string> arguments,
@@ -217,6 +314,84 @@ internal sealed class CodexRunner
         arguments.Add("-c");
         arguments.Add($"{ReasoningEffortConfigKey}={effort}");
         arguments.Add("-");
+    }
+
+    private static async Task<bool> IsAuthenticatedAsync(string executable)
+    {
+        using var process = new Process { StartInfo = CreateLoginStatusStartInfo(executable) };
+        try
+        {
+            if (!process.Start())
+            {
+                return false;
+            }
+
+            process.StandardInput.Close();
+            var stdoutTask = DiscardAsync(process.StandardOutput);
+            var stderrTask = DiscardAsync(process.StandardError);
+            try
+            {
+                using var timeout = new CancellationTokenSource(AuthenticationStatusTimeoutMilliseconds);
+                await process.WaitForExitAsync(timeout.Token);
+            }
+            catch (OperationCanceledException)
+            {
+                TryKill(process);
+                await DrainDiscardedAsync(stdoutTask, stderrTask);
+                return false;
+            }
+
+            await Task.WhenAll(stdoutTask, stderrTask);
+            return process.ExitCode == 0;
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or Win32Exception or IOException)
+        {
+            TryKill(process);
+            return false;
+        }
+    }
+
+    private static async Task DrainDetachedProcessAsync(Process process)
+    {
+        try
+        {
+            process.StandardInput.Close();
+            var stdoutTask = DiscardAsync(process.StandardOutput);
+            var stderrTask = DiscardAsync(process.StandardError);
+            await DrainDiscardedAsync(stdoutTask, stderrTask);
+            await process.WaitForExitAsync();
+        }
+        catch
+        {
+            // Login is intentionally detached from the Native Messaging request.
+        }
+        finally
+        {
+            process.Dispose();
+        }
+    }
+
+    private static async Task DiscardAsync(StreamReader reader)
+    {
+        var buffer = new char[4096];
+        while (await reader.ReadAsync(buffer, 0, buffer.Length) > 0)
+        {
+            // Do not retain CLI output from login or authentication status checks.
+        }
+    }
+
+    private static async Task DrainDiscardedAsync(
+        Task stdoutTask,
+        Task stderrTask)
+    {
+        try
+        {
+            await Task.WhenAll(stdoutTask, stderrTask);
+        }
+        catch
+        {
+            // The process was terminated; there is no output to expose.
+        }
     }
 
     internal static async Task<string?> LoadInstructionAsync(string instructionPath)

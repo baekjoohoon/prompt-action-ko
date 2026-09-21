@@ -85,12 +85,22 @@ function createFakeCodex() {
     "const args = process.argv.slice(2);",
     "const statePath = process.env.PROMPT_ACTION_FAKE_STATE;",
     "const mode = process.env.PROMPT_ACTION_FAKE_MODE || 'success';",
+    "const authenticated = process.env.PROMPT_ACTION_FAKE_AUTH !== 'false';",
     "const expected = process.env.PROMPT_ACTION_FAKE_EXPECTED || '한국어 입력 ✅';",
     "function record(value) { if (statePath) fs.appendFileSync(statePath, JSON.stringify(value) + '\\n'); }",
     "let input = '';",
     "process.stdin.setEncoding('utf8');",
     "process.stdin.on('data', (chunk) => { input += chunk; });",
     "process.stdin.on('end', () => {",
+    "  if (args[0] === 'login' && args[1] === 'status') {",
+    "    record({ method: 'login-status', args, input });",
+    "    if (!authenticated) { process.stderr.write('Not logged in'); process.exitCode = 1; return; }",
+    "    process.stdout.write('Logged in'); return;",
+    "  }",
+    "  if (args[0] === 'login') {",
+    "    record({ method: 'login', args, input });",
+    "    process.stdout.write('Login started'); return;",
+    "  }",
     "  record({ method: 'exec', args, input });",
     "  if (mode === 'timeout') { setInterval(() => {}, 1000); return; }",
     "  if (mode === 'auth') { process.stderr.write('Please login to Codex.'); process.exitCode = 1; return; }",
@@ -193,7 +203,8 @@ test('ping and request validation reject unsupported commands', { timeout: 30000
     ok: true,
     requestId: 'ping-request',
     host: 'Prompt Action',
-    codexAvailable: true
+    codexAvailable: true,
+    codexAuthenticated: true
   });
 
   const unknown = await sendRequest(host.child, {
@@ -214,6 +225,86 @@ test('ping and request validation reject unsupported commands', { timeout: 30000
   });
   assert.equal(engineMode.ok, false);
   assert.equal(engineMode.error.code, 'INVALID_REQUEST');
+});
+
+test('ping distinguishes an installed but unauthenticated Codex CLI', { timeout: 30000 }, async (t) => {
+  if (!assertHostBuilt(t)) return;
+  const fake = createFakeCodex();
+  t.after(() => fs.rmSync(fake.directory, { recursive: true, force: true }));
+  const host = startNativeHost(fake.commandPath, {
+    env: {
+      PROMPT_ACTION_FAKE_STATE: fake.statePath,
+      PROMPT_ACTION_FAKE_AUTH: 'false'
+    }
+  });
+  t.after(() => closeHost(host));
+
+  const ping = await sendRequest(host.child, { action: 'ping', requestId: 'unauthenticated' });
+  assert.deepEqual(ping, {
+    ok: true,
+    requestId: 'unauthenticated',
+    host: 'Prompt Action',
+    codexAvailable: true,
+    codexAuthenticated: false
+  });
+  assert.deepEqual(readEvents(fake.statePath).map((event) => ({ method: event.method, args: event.args })), [
+    { method: 'login-status', args: ['login', 'status'] }
+  ]);
+});
+
+test('ping reports an unavailable Codex CLI without attempting a command', { timeout: 30000 }, async (t) => {
+  if (!assertHostBuilt(t)) return;
+  const fake = createFakeCodex();
+  t.after(() => fs.rmSync(fake.directory, { recursive: true, force: true }));
+  const host = startNativeHost(path.join(fake.directory, 'does-not-exist.cmd'));
+  t.after(() => closeHost(host));
+
+  const ping = await sendRequest(host.child, { action: 'ping', requestId: 'missing-codex' });
+  assert.deepEqual(ping, {
+    ok: true,
+    requestId: 'missing-codex',
+    host: 'Prompt Action',
+    codexAvailable: false,
+    codexAuthenticated: false
+  });
+  assert.deepEqual(readEvents(fake.statePath), []);
+});
+
+test('codex_login starts only the fixed login command and rejects browser arguments', { timeout: 30000 }, async (t) => {
+  if (!assertHostBuilt(t)) return;
+  const fake = createFakeCodex();
+  t.after(() => fs.rmSync(fake.directory, { recursive: true, force: true }));
+  const host = startNativeHost(fake.commandPath, {
+    env: { PROMPT_ACTION_FAKE_STATE: fake.statePath }
+  });
+  t.after(() => closeHost(host));
+
+  const startedAt = Date.now();
+  const login = await sendRequest(host.child, { action: 'codex_login', requestId: 'login-request' });
+  assert.equal(login.ok, true);
+  assert.equal(login.requestId, 'login-request');
+  assert.equal(login.loginStarted, true);
+  assert.ok(Date.now() - startedAt < 2000);
+
+  const invalid = await sendRequest(host.child, {
+    action: 'codex_login',
+    requestId: 'login-with-arguments',
+    executable: 'whoami',
+    arguments: ['--unsafe']
+  });
+  assert.equal(invalid.ok, false);
+  assert.equal(invalid.error.code, 'INVALID_REQUEST');
+
+  const deadline = Date.now() + 2000;
+  let events = [];
+  while (Date.now() < deadline) {
+    events = readEvents(fake.statePath);
+    if (events.length > 0) break;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.deepEqual(events.map((event) => ({ method: event.method, args: event.args })), [
+    { method: 'login', args: ['login'] }
+  ]);
 });
 
 test('Codex timeout is bounded and returns the stable error contract', { timeout: 30000 }, async (t) => {

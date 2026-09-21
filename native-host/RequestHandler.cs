@@ -47,7 +47,19 @@ internal sealed class RequestHandler
                 {
                     return NativeResponse.Failure(ErrorCodes.InvalidRequest, "The ping request is invalid.", requestId);
                 }
-                return NativeResponse.Ping(CodexExecutableResolver.TryResolve() is not null, requestId);
+                return await codexRunner.GetStatusAsync(requestId);
+            }
+
+            if (action == "codex_login")
+            {
+                if (!HasOnlyProperties(root, "action", "requestId"))
+                {
+                    return NativeResponse.Failure(
+                        ErrorCodes.InvalidRequest,
+                        "The Codex login request is invalid.",
+                        requestId);
+                }
+                return codexRunner.StartLogin(requestId);
             }
 
             if (action != "optimize_prompt")

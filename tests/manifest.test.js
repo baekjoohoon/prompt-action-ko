@@ -8,7 +8,7 @@ const root = path.join(__dirname, '..');
 test('Manifest V3 is narrow and points at the implemented components', () => {
   const manifest = JSON.parse(fs.readFileSync(path.join(root, 'extension', 'manifest.json'), 'utf8'));
   assert.equal(manifest.manifest_version, 3);
-  assert.equal(manifest.version, '1.2.0');
+  assert.equal(manifest.version, '1.2.1');
   assert.deepEqual(manifest.permissions, ['nativeMessaging']);
   assert.deepEqual(manifest.host_permissions.sort(), [
     'https://chat.openai.com/*',

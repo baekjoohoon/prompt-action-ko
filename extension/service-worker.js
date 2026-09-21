@@ -192,9 +192,17 @@ if (typeof importScripts === 'function') {
       return nativeClient.callNative({ action: 'ping' }, contract.validatePingResponse);
     }
 
+    function loginCodex() {
+      return nativeClient.callNative(
+        { action: 'codex_login' },
+        contract.validateCodexLoginResponse
+      );
+    }
+
     return Object.freeze({
       checkNativeHost,
       hasNativePort: nativeClient.hasPort,
+      loginCodex,
       optimizePrompt,
       pendingNativeRequests: nativeClient.pendingCount
     });
@@ -252,6 +260,22 @@ if (typeof importScripts === 'function') {
           return false;
         }
         api.checkNativeHost().then(sendResponse).catch(() => {
+          sendResponse(contract.failure('NATIVE_HOST_UNAVAILABLE', 'The native host is unavailable.'));
+        });
+        return true;
+      }
+
+      if (message.action === 'codex_login') {
+        if (!isPopupSender(sender)) {
+          sendResponse(contract.failure('INVALID_REQUEST', 'Codex login is allowed only from the popup.'));
+          return false;
+        }
+        const request = contract.validateCodexLoginRequest(message);
+        if (!request.ok) {
+          sendResponse(request);
+          return false;
+        }
+        api.loginCodex().then(sendResponse).catch(() => {
           sendResponse(contract.failure('NATIVE_HOST_UNAVAILABLE', 'The native host is unavailable.'));
         });
         return true;

@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Prompt Action",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Quickly rewrite the current ChatGPT draft into a strong English prompt that requests a Korean answer.",
   "permissions": [
     "nativeMessaging"

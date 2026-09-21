@@ -68,6 +68,8 @@ internal sealed class NativeResponse
     public NativeError? Error { get; init; }
     public string? Host { get; init; }
     public bool? CodexAvailable { get; init; }
+    public bool? CodexAuthenticated { get; init; }
+    public bool? LoginStarted { get; init; }
     public NativeTimingMetadata? Meta { get; init; }
 
     public static NativeResponse Success(string text, NativeTimingMetadata meta, string? requestId) => new()
@@ -78,12 +80,23 @@ internal sealed class NativeResponse
         Meta = meta
     };
 
-    public static NativeResponse Ping(bool codexAvailable, string? requestId) => new()
+    public static NativeResponse Ping(
+        bool codexAvailable,
+        bool codexAuthenticated,
+        string? requestId) => new()
     {
         Ok = true,
         RequestId = requestId,
         Host = "Prompt Action",
-        CodexAvailable = codexAvailable
+        CodexAvailable = codexAvailable,
+        CodexAuthenticated = codexAuthenticated
+    };
+
+    public static NativeResponse LoginStartedResponse(string? requestId) => new()
+    {
+        Ok = true,
+        RequestId = requestId,
+        LoginStarted = true
     };
 
     public static NativeResponse Failure(string code, string message, string? requestId = null) => new()

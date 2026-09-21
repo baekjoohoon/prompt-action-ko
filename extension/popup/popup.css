@@ -4,7 +4,7 @@
 }
 
 body {
-  width: 310px;
+  width: 320px;
   margin: 0;
   background: #202123;
   color: #f4f4f5;
@@ -19,11 +19,21 @@ h1 {
   font-size: 18px;
 }
 
-.details {
+.overall-status {
+  margin: 0 0 10px;
+  color: #74e0a8;
+  font-size: 13px;
+  line-height: 1.45;
+  white-space: pre-line;
+}
+
+.details,
+.install-details {
   margin: 0;
 }
 
-.details > div {
+.details > div,
+.install-details > div {
   display: grid;
   grid-template-columns: 106px 1fr;
   gap: 8px;
@@ -48,8 +58,46 @@ kbd {
   font: inherit;
 }
 
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+button,
+.actions a {
+  box-sizing: border-box;
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 1px solid #6b6d75;
+  border-radius: 5px;
+  background: #3b3d45;
+  color: #f4f4f5;
+  font: inherit;
+  font-size: 12px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+button:hover,
+.actions a:hover {
+  background: #4a4d57;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+button.secondary {
+  border-color: #51535b;
+  background: transparent;
+}
+
 .guide,
-.hint {
+.hint,
+.setup-info {
   margin: 14px 0 0;
   color: #c9c9ce;
   font-size: 12px;
@@ -60,10 +108,33 @@ kbd {
   color: #ffcc80;
 }
 
+.setup-info summary {
+  color: #a8a8ad;
+  cursor: pointer;
+}
+
+.install-details {
+  margin-top: 6px;
+}
+
+.install-details > div {
+  grid-template-columns: 86px 1fr;
+  padding: 5px 0;
+  border-bottom: 0;
+}
+
 .ok {
   color: #74e0a8;
 }
 
 .error {
   color: #ff9b9b;
+}
+
+.muted {
+  color: #a8a8ad;
+}
+
+[hidden] {
+  display: none !important;
 }

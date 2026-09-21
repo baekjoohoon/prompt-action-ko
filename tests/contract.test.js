@@ -27,6 +27,47 @@ test('contract rejects unknown actions, oversized input, and empty input', () =>
   assert.equal(contract.validateOptimizeRequest({ action: 'optimize_prompt', text: ' \n\t' }).error.code, 'EMPTY_PROMPT');
   assert.equal(contract.validatePingRequest({ action: 'ping' }).ok, true);
   assert.equal(contract.validatePingRequest({ action: 'ping', text: 'not allowed' }).error.code, 'INVALID_REQUEST');
+  assert.equal(contract.validateCodexLoginRequest({ action: 'codex_login' }).ok, true);
+  assert.equal(contract.validateCodexLoginRequest({
+    action: 'codex_login',
+    command: 'whoami'
+  }).error.code, 'INVALID_REQUEST');
+});
+
+test('ping and Codex login responses require the narrow status contract', () => {
+  const authenticated = contract.validatePingResponse({
+    ok: true,
+    host: 'Prompt Action',
+    codexAvailable: true,
+    codexAuthenticated: true
+  });
+  assert.deepEqual(authenticated, {
+    ok: true,
+    host: 'Prompt Action',
+    codexAvailable: true,
+    codexAuthenticated: true
+  });
+  assert.equal(contract.validatePingResponse({
+    ok: true,
+    host: 'Prompt Action',
+    codexAvailable: true
+  }).ok, false);
+  assert.equal(contract.validatePingResponse({
+    ok: true,
+    host: 'Prompt Action',
+    codexAvailable: true,
+    codexAuthenticated: true,
+    command: 'whoami'
+  }).ok, false);
+  assert.deepEqual(
+    contract.validateCodexLoginResponse({ ok: true, loginStarted: true }),
+    { ok: true, loginStarted: true }
+  );
+  assert.equal(contract.validateCodexLoginResponse({
+    ok: true,
+    loginStarted: true,
+    executable: 'codex.exe'
+  }).ok, false);
 });
 
 test('optimize response accepts LOW/MEDIUM timing metadata and rejects HIGH', () => {

@@ -113,6 +113,9 @@
     }
     if (response.ok === true && typeof response.text === 'string' &&
         response.text.trim().length > 0 && response.text.length <= MAX_OPTIMIZED_LENGTH) {
+      if (!hasOnlyKeys(response, ['ok', 'text', 'meta'])) {
+        return failure('INVALID_NATIVE_RESPONSE', 'The native host returned an invalid response.');
+      }
       if (response.meta !== undefined && !validateTimingMetadata(response.meta)) {
         return failure('INVALID_NATIVE_RESPONSE', 'The native host returned invalid timing metadata.');
       }
@@ -120,7 +123,8 @@
         ? { ok: true, text: response.text }
         : { ok: true, text: response.text, meta: response.meta };
     }
-    if (response.ok === false && validateNativeError(response.error)) {
+    if (response.ok === false && hasOnlyKeys(response, ['ok', 'error']) &&
+        validateNativeError(response.error)) {
       return { ok: false, error: response.error };
     }
     return failure('INVALID_NATIVE_RESPONSE', 'The native host returned an invalid response.');
@@ -130,15 +134,42 @@
     if (!isRecord(response)) {
       return failure('INVALID_NATIVE_RESPONSE', 'The native host returned an invalid response.');
     }
-    if (response.ok === true && typeof response.host === 'string' &&
-        typeof response.codexAvailable === 'boolean') {
+    if (response.ok === true && response.host === 'Prompt Action' &&
+        typeof response.codexAvailable === 'boolean' &&
+        typeof response.codexAuthenticated === 'boolean' &&
+        hasOnlyKeys(response, ['ok', 'host', 'codexAvailable', 'codexAuthenticated'])) {
       return {
         ok: true,
         host: response.host,
-        codexAvailable: response.codexAvailable
+        codexAvailable: response.codexAvailable,
+        codexAuthenticated: response.codexAuthenticated
       };
     }
-    if (response.ok === false && validateNativeError(response.error)) {
+    if (response.ok === false && hasOnlyKeys(response, ['ok', 'error']) &&
+        validateNativeError(response.error)) {
+      return { ok: false, error: response.error };
+    }
+    return failure('INVALID_NATIVE_RESPONSE', 'The native host returned an invalid response.');
+  }
+
+  function validateCodexLoginRequest(message) {
+    if (!isRecord(message) || !hasOnlyKeys(message, ['action']) ||
+        message.action !== 'codex_login') {
+      return failure('INVALID_REQUEST', 'The Codex login request is invalid.');
+    }
+    return { ok: true };
+  }
+
+  function validateCodexLoginResponse(response) {
+    if (!isRecord(response)) {
+      return failure('INVALID_NATIVE_RESPONSE', 'The native host returned an invalid response.');
+    }
+    if (response.ok === true && response.loginStarted === true &&
+        hasOnlyKeys(response, ['ok', 'loginStarted'])) {
+      return { ok: true, loginStarted: true };
+    }
+    if (response.ok === false && hasOnlyKeys(response, ['ok', 'error']) &&
+        validateNativeError(response.error)) {
       return { ok: false, error: response.error };
     }
     return failure('INVALID_NATIVE_RESPONSE', 'The native host returned an invalid response.');
@@ -166,6 +197,8 @@
     failure,
     isRecord,
     isSupportedChatGPTUrl,
+    validateCodexLoginRequest,
+    validateCodexLoginResponse,
     validateOptimizeRequest,
     validatePingRequest,
     validateOptimizeResponse,
